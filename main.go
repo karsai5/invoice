@@ -19,6 +19,12 @@ var interFont []byte
 //go:embed "Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf"
 var interBoldFont []byte
 
+type Item struct {
+	Name     string  `json:"name"     yaml:"name"`
+	Quantity float64 `json:"quantity" yaml:"quantity"`
+	Rate     float64 `json:"rate"     yaml:"rate"`
+}
+
 type Invoice struct {
 	Id    string `json:"id" yaml:"id"`
 	Title string `json:"title" yaml:"title"`
@@ -29,9 +35,7 @@ type Invoice struct {
 	Date string `json:"date" yaml:"date"`
 	Due  string `json:"due" yaml:"due"`
 
-	Items      []string  `json:"items" yaml:"items"`
-	Quantities []float64 `json:"quantities" yaml:"quantities"`
-	Rates      []float64 `json:"rates" yaml:"rates"`
+	Items []Item `json:"items" yaml:"items"`
 
 	Tax      float64 `json:"tax" yaml:"tax"`
 	Discount float64 `json:"discount" yaml:"discount"`
@@ -42,18 +46,18 @@ type Invoice struct {
 
 func DefaultInvoice() Invoice {
 	return Invoice{
-		Id:         time.Now().Format("20060102"),
-		Title:      "INVOICE",
-		Rates:      []float64{25},
-		Quantities: []float64{2},
-		Items:      []string{"Paper Cranes"},
-		From:       "Project Folded, Inc.",
-		To:         "Untitled Corporation, Inc.",
-		Date:       time.Now().Format("Jan 02, 2006"),
-		Due:        time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
-		Tax:        0,
-		Discount:   0,
-		Currency:   "USD",
+		Id:    time.Now().Format("20060102"),
+		Title: "INVOICE",
+		Items: []Item{
+			{Name: "Paper Cranes", Quantity: 2, Rate: 25},
+		},
+		From:     "Project Folded, Inc.",
+		To:       "Untitled Corporation, Inc.",
+		Date:     time.Now().Format("Jan 02, 2006"),
+		Due:      time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
+		Tax:      0,
+		Discount: 0,
+		Currency: "USD",
 	}
 }
 
@@ -62,6 +66,11 @@ var (
 	output         string
 	file           = Invoice{}
 	defaultInvoice = DefaultInvoice()
+
+	// CLI flag slices — zipped into file.Items when not using --import
+	flagItems      []string
+	flagQuantities []float64
+	flagRates      []float64
 )
 
 func init() {
@@ -71,9 +80,9 @@ func init() {
 	generateCmd.Flags().StringVar(&file.Id, "id", time.Now().Format("20060102"), "ID")
 	generateCmd.Flags().StringVar(&file.Title, "title", "INVOICE", "Title")
 
-	generateCmd.Flags().Float64SliceVarP(&file.Rates, "rate", "r", defaultInvoice.Rates, "Rates")
-	generateCmd.Flags().Float64SliceVarP(&file.Quantities, "quantity", "q", defaultInvoice.Quantities, "Quantities")
-	generateCmd.Flags().StringSliceVarP(&file.Items, "item", "i", defaultInvoice.Items, "Items")
+	generateCmd.Flags().Float64SliceVarP(&flagRates, "rate", "r", []float64{25}, "Rates")
+	generateCmd.Flags().Float64SliceVarP(&flagQuantities, "quantity", "q", []float64{2}, "Quantities")
+	generateCmd.Flags().StringSliceVarP(&flagItems, "item", "i", []string{"Paper Cranes"}, "Items")
 
 	generateCmd.Flags().StringVarP(&file.Logo, "logo", "l", defaultInvoice.Logo, "Company logo")
 	generateCmd.Flags().StringVarP(&file.From, "from", "f", defaultInvoice.From, "Issuing company")
@@ -108,6 +117,17 @@ var generateCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+		} else {
+			for i, name := range flagItems {
+				item := Item{Name: name, Quantity: 1}
+				if i < len(flagQuantities) {
+					item.Quantity = flagQuantities[i]
+				}
+				if i < len(flagRates) {
+					item.Rate = flagRates[i]
+				}
+				file.Items = append(file.Items, item)
+			}
 		}
 
 		pdf := gopdf.GoPdf{}
@@ -131,19 +151,12 @@ var generateCmd = &cobra.Command{
 		writeBillTo(&pdf, file.To)
 		writeHeaderRow(&pdf)
 		subtotal := 0.0
-		for i := range file.Items {
-			q := 1.0
-			if len(file.Quantities) > i {
-				q = file.Quantities[i]
+		for _, item := range file.Items {
+			if item.Quantity == 0 {
+				item.Quantity = 1
 			}
-
-			r := 0.0
-			if len(file.Rates) > i {
-				r = file.Rates[i]
-			}
-
-			writeRow(&pdf, file.Items[i], q, r)
-			subtotal += float64(q) * r
+			writeRow(&pdf, item)
+			subtotal += item.Quantity * item.Rate
 		}
 		if file.Note != "" {
 			writeNotes(&pdf, file.Note)

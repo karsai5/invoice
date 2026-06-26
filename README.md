@@ -48,24 +48,26 @@ invoice generate \
 
 ### Configuration File
 
-Or, save repeated information with JSON / YAML:
+Or, save repeated information with a YAML config file:
 
-```json
-{
-    "logo": "/path/to/image.png",
-    "from": "Dream, Inc.",
-    "to": "Imagine, Inc.",
-    "tax": 0.13,
-    "items": ["Yellow Rubber Duck", "Special Edition Plaid Rubber Duck"],
-    "quantities": [5, 1],
-    "rates": [25, 25],
-}
+```yaml
+logo: /path/to/image.png
+from: Dream, Inc.
+to: Imagine, Inc.
+tax: 0.13
+items:
+  - name: Yellow Rubber Duck
+    quantity: 5
+    rate: 25
+  - name: Special Edition Plaid Rubber Duck
+    quantity: 1
+    rate: 25
 ```
 
 Generate new invoice by importing the configuration file:
 
 ```bash
-invoice generate --import path/to/data.json \
+invoice generate --import path/to/data.yaml \
     --output duck-invoice.pdf
 ```
 
@@ -113,6 +115,7 @@ Or download a binary from the [releases](https://github.com/maaslalani/invoice/r
 I'd love to hear your feedback on improving `invoice`.
 
 Feel free to reach out via:
+
 * [Email](mailto:maas@lalani.dev)
 * [Twitter](https://twitter.com/maaslalani)
 * [GitHub issues](https://github.com/maaslalani/invoice/issues/new)
